@@ -34,7 +34,7 @@ nexus-ai/
 ├── apps/                   # Aplicações da plataforma
 │   ├── web/                # Frontend Next.js
 │   ├── api/                # Backend NestJS
-│   └── agent-runtime/      # Inicialização do runtime Agno
+│   └── agent-runtime/      # Bootstrap Python do Agent Runtime
 │
 ├── packages/               # Bibliotecas TypeScript compartilhadas
 ├── python/                 # Agentes e ferramentas Python
@@ -59,7 +59,7 @@ Para trabalhar com o projeto, é necessário ter instalado:
 - pnpm 12.18.0
 - NVM (recomendado para gerenciamento de versões do Node.js)
 
-As dependências Python e a infraestrutura Docker serão configuradas nas próximas etapas.
+Para trabalhar no Agent Runtime, instale o uv 0.13.7. O uv pode instalar o Python 3.13 indicado pelo projeto. A infraestrutura Docker está prevista para uma etapa posterior.
 
 ## Configuração inicial
 
@@ -120,8 +120,19 @@ Os principais comandos previstos são:
 | `pnpm lint` | Verificar padrões de qualidade de código |
 | `pnpm test` | Executar testes automatizados |
 
-**Atenção:** inicialmente, apenas os scripts de desenvolvimento e build estão definidos na raiz. As aplicações, os testes e as demais verificações serão adicionados nas próximas etapas.
+**Atenção:** a raiz já oferece os scripts `pnpm dev` e `pnpm build` para o Web e a API. Os scripts agregados de lint e testes estão previstos para uma etapa posterior.
 
+### Agent Runtime
+
+O Agent Runtime usa uv para gerenciar seu ambiente e seu lockfile. A partir da raiz:
+
+```bash
+cd apps/agent-runtime
+uv sync --locked
+uv run --locked nexus-runtime
+```
+
+Consulte o [README do Agent Runtime](apps/agent-runtime/README.md) para instalar o Python e validar o pacote.
 
 ## Arquitetura e documentação
 
