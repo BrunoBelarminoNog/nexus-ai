@@ -1,0 +1,74 @@
+x-healthcheck: &healthcheck
+  interval: 5s
+  timeout: 3s
+  retries: 10
+  start_period: 15s
+
+x-node-healthcheck: &node-healthcheck
+  <<: *healthcheck
+  test:
+    - CMD
+    - node
+    - --input-type=module
+    - -e
+    - |
+      const url = 'http://127.0.0.1:' + process.env.PORT + '/health';
+      const response = await fetch(url, { signal: AbortSignal.timeout(2000) });
+      if (response.status !== 200) process.exitCode = 1;
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/node.Dockerfile
+      target: web
+    init: true
+    environment:
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    healthcheck: *node-healthcheck
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/node.Dockerfile
+      target: api
+    init: true
+    environment:
+      PORT: "4000"
+    ports:
+      - "127.0.0.1:${API_PORT:-4000}:4000"
+    healthcheck: *node-healthcheck
+
+  agent-runtime:
+    build:
+      context: .
+      dockerfile: infra/docker/agent-runtime.Dockerfile
+    init: true
+    healthcheck:
+      <<: *healthcheck
+      test:
+        - CMD
+        - /app/.venv/bin/python
+        - -c
+        - from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=2).close()
+
+  postgres:
+    image: postgres:17.12-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nexus}
+      POSTGRES_USER: ${POSTGRES_USER:-nexus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_local}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      <<: *healthcheck
+      test:
+        - CMD-SHELL
+        - pg_isready -h 127.0.0.1 -t 2 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+
+volumes:
+  postgres-data:

@@ -59,7 +59,7 @@ Para trabalhar com o projeto, é necessário ter instalado:
 - pnpm 12.18.0
 - NVM (recomendado para gerenciamento de versões do Node.js)
 
-Para trabalhar no Agent Runtime, instale o uv 0.13.7. O uv pode instalar o Python 3.13 indicado pelo projeto. A infraestrutura Docker está prevista para uma etapa posterior.
+Para trabalhar no Agent Runtime, instale o uv 0.13.7. O uv pode instalar o Python 3.13 indicado pelo projeto.
 
 ## Configuração inicial
 
@@ -124,6 +124,37 @@ Os principais comandos JavaScript/TypeScript são:
 
 O Turbo executa apenas tarefas existentes em cada pacote. A Web ainda não tem suíte de testes; `pnpm test` não representa cobertura de testes do frontend. O typecheck roda sem cache para gerar os tipos de rotas do Next.js em checkouts limpos.
 
+### Ambiente local com Docker Compose
+
+Com o Docker Engine e o plugin Docker Compose (ou Docker Desktop) em execução, suba a stack pela raiz:
+
+```bash
+docker compose up --build --wait
+docker compose ps
+```
+
+O Compose usa os valores locais padrão. Para trocar as portas publicadas ou os parâmetros iniciais do PostgreSQL, copie `.env.example` para `.env` e edite o arquivo.
+
+| Serviço | Endpoint ou conexão padrão | Health check |
+|---|---|---|
+| Web | `http://localhost:3000` | `GET /health` |
+| API | `http://localhost:4000` | `GET /health` |
+| Agent Runtime | `http://agent-runtime:8000` na rede do Compose | `GET /health` |
+| PostgreSQL 17 | `127.0.0.1:5432` no host e `postgres:5432` na rede do Compose | `pg_isready` via TCP |
+
+As sondas HTTP retornam `200` com `{"status":"ok"}` e confirmam que cada processo responde. A sonda do runtime sobe com a biblioteca padrão do Python e antecede a integração com AgentOS. O PostgreSQL já aceita conexões, com migrações e integração com a API previstas para a NX-010. O build da Web acessa o Google Fonts.
+
+```bash
+curl -fsS http://localhost:3000/health
+curl -fsS http://localhost:4000/health
+docker compose logs --tail=100
+docker compose down
+```
+
+O volume `postgres-data` sobrevive a `docker compose down` e à recriação do serviço. As variáveis `POSTGRES_DB`, `POSTGRES_USER` e `POSTGRES_PASSWORD` inicializam apenas volumes vazios. `docker compose down --volumes` apaga os dados locais.
+
+Referências do [Docker Compose](https://docs.docker.com/reference/cli/docker/compose/up/) e da [imagem oficial do PostgreSQL](https://hub.docker.com/_/postgres).
+
 ### Agent Runtime
 
 O Agent Runtime usa uv para gerenciar seu ambiente e seu lockfile. A partir da raiz:
@@ -138,10 +169,11 @@ Consulte o [README do Agent Runtime](apps/agent-runtime/README.md) para instalar
 
 ## Qualidade e CI
 
-O workflow `.github/workflows/ci.yml` executa em PRs para `main`, pushes na `main` e disparos manuais. Há dois jobs independentes:
+O workflow `.github/workflows/ci.yml` executa em PRs para `main`, pushes na `main` e disparos manuais. Há três jobs independentes:
 
 - **TypeScript:** instalação com lockfile congelado, lint (ESLint na Web e Oxlint na API), typecheck, testes unitários/E2E da API e builds da Web/API.
 - **Python:** instalação com `uv sync --locked`, Ruff (lint e formatação), mypy estrito, smoke test da CLI, build e validação do wheel instalado fora do checkout.
+- **Docker Compose:** valida a configuração, constrói e inicia os serviços, verifica as sondas HTTP e confirma a persistência de dados após recriar o contêiner do PostgreSQL.
 
 Na raiz, após `uv sync --locked` em `apps/agent-runtime`:
 
@@ -153,7 +185,7 @@ Os alvos `make lint-python` e `make typecheck-python` também podem rodar separa
 
 A CI não faz deploy nem usa credenciais de providers. Não há suíte de testes de agentes ainda; o smoke test cobre somente empacotamento e entrada da CLI. O build Web atual baixa fontes do Google e requer acesso externo.
 
-Para impedir merges com falhas, configure as verificações **TypeScript** e **Python** como obrigatórias nas regras da branch `main`. Criar o workflow por si só não ativa proteção de branch.
+Para impedir merges com falhas, configure as verificações **TypeScript**, **Python** e **Docker Compose** como obrigatórias nas regras da branch `main`. Criar o workflow por si só não ativa proteção de branch.
 
 Referências: [tarefas do Turbo](https://turborepo.dev/docs/crafting-your-repository/configuring-tasks), [uv no GitHub Actions](https://docs.astral.sh/uv/guides/integration/github/), [ferramentas isoladas com uv](https://docs.astral.sh/uv/guides/tools/).
 
