@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      TURBO_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+      - name: Install repository pnpm version
+        shell: bash
+        run: |
+          package_manager="$(node -p 'require("./package.json").packageManager')"
+          npm install --global "$package_manager"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test
+      - name: API end-to-end tests
+        run: pnpm test:e2e
+      - name: Build
+        run: pnpm build
+
+  python:
+    name: Python
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: "0.13.7"
+          enable-cache: true
+          cache-dependency-glob: |
+            apps/agent-runtime/uv.lock
+            Makefile
+      - name: Install Python
+        working-directory: apps/agent-runtime
+        run: uv python install
+      - name: Install locked runtime
+        working-directory: apps/agent-runtime
+        run: uv sync --locked
+      - name: Lint and formatting
+        run: make lint-python
+      - name: Typecheck
+        run: make typecheck-python
+      - name: Runtime smoke test
+        working-directory: apps/agent-runtime
+        run: uv run --locked nexus-runtime
+      - name: Build distributions
+        working-directory: apps/agent-runtime
+        run: uv build
+      - name: Verify installed wheel outside checkout
+        shell: bash
+        run: |
+          uv venv --python 3.13 "$RUNNER_TEMP/nexus-wheel"
+          uv pip install --python "$RUNNER_TEMP/nexus-wheel/bin/python" apps/agent-runtime/dist/*.whl
+          cd "$RUNNER_TEMP"
+          output="$("$RUNNER_TEMP/nexus-wheel/bin/nexus-runtime")"
+          test "$output" = "Nexus AI Agent Runtime bootstrap OK"
