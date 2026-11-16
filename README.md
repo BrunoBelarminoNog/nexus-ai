@@ -111,16 +111,18 @@ Esse comando permite inspecionar os projetos reconhecidos pelo Turborepo.
 
 O Turborepo será responsável por coordenar as tarefas das aplicações JavaScript e TypeScript.
 
-Os principais comandos previstos são:
+Os principais comandos JavaScript/TypeScript são:
 
 | Comando | Finalidade |
 |---|---|
 | `pnpm dev` | Iniciar as aplicações em modo de desenvolvimento |
 | `pnpm build` | Executar os builds dos projetos |
 | `pnpm lint` | Verificar padrões de qualidade de código |
-| `pnpm test` | Executar testes automatizados |
+| `pnpm typecheck` | Verificar tipos da Web e da API |
+| `pnpm test` | Executar testes unitários existentes (API) |
+| `pnpm test:e2e` | Executar testes end-to-end existentes (API) |
 
-**Atenção:** a raiz já oferece os scripts `pnpm dev` e `pnpm build` para o Web e a API. Os scripts agregados de lint e testes estão previstos para uma etapa posterior.
+O Turbo executa apenas tarefas existentes em cada pacote. A Web ainda não tem suíte de testes; `pnpm test` não representa cobertura de testes do frontend. O typecheck roda sem cache para gerar os tipos de rotas do Next.js em checkouts limpos.
 
 ### Agent Runtime
 
@@ -133,6 +135,27 @@ uv run --locked nexus-runtime
 ```
 
 Consulte o [README do Agent Runtime](apps/agent-runtime/README.md) para instalar o Python e validar o pacote.
+
+## Qualidade e CI
+
+O workflow `.github/workflows/ci.yml` executa em PRs para `main`, pushes na `main` e disparos manuais. Há dois jobs independentes:
+
+- **TypeScript:** instalação com lockfile congelado, lint (ESLint na Web e Oxlint na API), typecheck, testes unitários/E2E da API e builds da Web/API.
+- **Python:** instalação com `uv sync --locked`, Ruff (lint e formatação), mypy estrito, smoke test da CLI, build e validação do wheel instalado fora do checkout.
+
+Na raiz, após `uv sync --locked` em `apps/agent-runtime`:
+
+```bash
+make check-python
+```
+
+Os alvos `make lint-python` e `make typecheck-python` também podem rodar separadamente. As ferramentas de qualidade Python têm versões fixadas no Makefile e executam isoladas via `uvx`; não são dependências do runtime. O ambiente do mypy resolve suas dependências transitivas separadamente do `uv.lock` do runtime.
+
+A CI não faz deploy nem usa credenciais de providers. Não há suíte de testes de agentes ainda; o smoke test cobre somente empacotamento e entrada da CLI. O build Web atual baixa fontes do Google e requer acesso externo.
+
+Para impedir merges com falhas, configure as verificações **TypeScript** e **Python** como obrigatórias nas regras da branch `main`. Criar o workflow por si só não ativa proteção de branch.
+
+Referências: [tarefas do Turbo](https://turborepo.dev/docs/crafting-your-repository/configuring-tasks), [uv no GitHub Actions](https://docs.astral.sh/uv/guides/integration/github/), [ferramentas isoladas com uv](https://docs.astral.sh/uv/guides/tools/).
 
 ## Arquitetura e documentação
 
