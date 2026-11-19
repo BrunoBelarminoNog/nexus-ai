@@ -142,7 +142,7 @@ O Compose usa os valores locais padrão. Para trocar as portas publicadas ou os 
 | Agent Runtime | `http://agent-runtime:8000` na rede do Compose | `GET /health` |
 | PostgreSQL 17 | `127.0.0.1:5432` no host e `postgres:5432` na rede do Compose | `pg_isready` via TCP |
 
-As sondas HTTP retornam `200` com `{"status":"ok"}` e confirmam que cada processo responde. A sonda do runtime sobe com a biblioteca padrão do Python e antecede a integração com AgentOS. O PostgreSQL já aceita conexões, com migrações e integração com a API previstas para a NX-010. O build da Web acessa o Google Fonts.
+As sondas HTTP retornam `200` com `{"status":"ok"}` e confirmam que cada processo responde. A sonda do runtime sobe com a biblioteca padrão do Python e antecede a integração com AgentOS. A API utiliza PostgreSQL com Drizzle ORM. As migrações são aplicadas explicitamente com `pnpm --filter api db:migrate`; consulte o [README da API](apps/api/README.md) para configurar a conexão e executar os testes de integração.
 
 ```bash
 curl -fsS http://localhost:3000/health

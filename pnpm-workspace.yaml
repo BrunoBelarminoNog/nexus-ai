@@ -5,5 +5,9 @@ packages:
 saveExact: true
 
 allowBuilds:
+  cpu-features: false
+  esbuild: true
+  protobufjs: false
   sharp: false
+  ssh2: false
   unrs-resolver: false

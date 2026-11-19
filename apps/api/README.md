@@ -1,132 +1,243 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# API do Nexus AI
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API desenvolvida com NestJS e TypeScript, responsável pela camada de controle da plataforma Nexus AI. A base atual inclui rotas HTTP, conexão com PostgreSQL, migrações com Drizzle e testes automatizados. Os módulos de negócio serão implementados nas próximas etapas.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Este pacote faz parte do monorepositório. Execute os comandos deste documento a partir da **raiz do repositório**, exceto os comandos identificados como internos ao `psql`.
 
-## Description
+## Tecnologias
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+| Tecnologia         | Responsabilidade                                            |
+| ------------------ | ----------------------------------------------------------- |
+| Node.js 24         | Executar a aplicação e carregar variáveis de ambiente       |
+| NestJS             | Organizar módulos, injeção de dependências e rotas HTTP     |
+| TypeScript com ESM | Verificar tipos e utilizar módulos com `import` e `export`  |
+| PostgreSQL 17      | Persistir os dados da plataforma                            |
+| Drizzle ORM e `pg` | Executar consultas e gerenciar o pool de conexões           |
+| Drizzle Kit        | Gerar e aplicar migrações versionadas                       |
+| Vitest             | Executar testes unitários, HTTP e de integração             |
+| Testcontainers     | Criar um PostgreSQL temporário para os testes de integração |
+| Oxlint             | Verificar o código, incluindo regras que dependem de tipos  |
 
-## Project setup
+As versões das dependências estão em [`package.json`](./package.json) e no [`pnpm-lock.yaml`](../../pnpm-lock.yaml).
 
-```bash
-$ pnpm install
-```
+## Pré-requisitos
 
-## Compile and run the project
+- Node.js 24, conforme o [`.nvmrc`](../../.nvmrc).
+- pnpm 12.18.0, conforme o [`package.json` da raiz](../../package.json).
+- Docker Desktop ou Docker Engine com Docker Compose em execução.
 
-```bash
-# development
-$ pnpm run start
+O PostgreSQL e o cliente `psql` são fornecidos pelo contêiner. A instalação dessas ferramentas no computador é opcional.
 
-# watch mode
-$ pnpm run start:dev
+## Configuração inicial
 
-# production mode
-$ pnpm run start:prod
-```
-
-## Run tests
+Selecione a versão do Node.js e instale as dependências do monorepositório:
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+nvm install
+nvm use
+pnpm install --frozen-lockfile
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Crie o arquivo de ambiente a partir do exemplo, preservando um `.env` existente:
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+test -f .env || cp .env.example .env
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Revise as variáveis antes de iniciar a API:
 
-## Observability
+| Variável                                            | Uso                                                                 |
+| --------------------------------------------------- | ------------------------------------------------------------------- |
+| `DATABASE_URL`                                      | Conexão utilizada pela API local e pelos comandos de banco          |
+| `PORT`                                              | Porta da API executada localmente; o padrão é `4000`                |
+| `API_PORT`                                          | Porta publicada pelo Docker Compose para a API; o padrão é `4000`   |
+| `POSTGRES_PORT`                                     | Porta publicada pelo Docker Compose para o banco; o padrão é `5432` |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | Parâmetros de inicialização do PostgreSQL no Compose                |
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+O [`.env.example`](../../.env.example) contém valores destinados ao desenvolvimento local. O arquivo `.env` deve permanecer fora do controle de versão.
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+Para a API executada no computador, `DATABASE_URL` aponta para `127.0.0.1`. No contêiner da API, o Compose configura a conexão com o serviço `postgres`, na porta interna `5432`. Se alterar `POSTGRES_PORT`, ajuste também a porta de `DATABASE_URL` para os comandos executados no computador.
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+## Executar em desenvolvimento
 
-To add it to this project, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
+Inicie o PostgreSQL e aplique as migrações:
 
 ```bash
-$ npx @nestjs/observe link
+docker compose up -d --wait --wait-timeout 60 postgres
+pnpm --filter api db:check
+pnpm --filter api db:migrate
 ```
 
-It installs `@nestjs/observe`, wires it into `AppModule` and `main.ts`, and writes the app key and secret into `.env`, which every `nest start` script (`start`, `start:dev`, `start:debug`) then loads. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
-
-Or do it by hand:
+Inicie a API com reinicialização automática ao alterar os arquivos:
 
 ```bash
-$ pnpm install @nestjs/observe
+pnpm --filter api start:dev
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/sdk) - it takes a single import and an app key.
+Os scripts `start`, `start:dev`, `start:debug` e `start:prod` carregam o `.env` da raiz quando ele existe. A conexão utiliza a variável `DATABASE_URL` disponível no processo.
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+| Comando                         | Finalidade                                                 |
+| ------------------------------- | ---------------------------------------------------------- |
+| `pnpm --filter api start`       | Compilar e iniciar a aplicação                             |
+| `pnpm --filter api start:dev`   | Executar em desenvolvimento com reinicialização automática |
+| `pnpm --filter api start:debug` | Executar com o depurador e reinicialização automática      |
+| `pnpm --filter api build`       | Compilar a aplicação para `apps/api/dist`                  |
+| `pnpm --filter api start:prod`  | Executar a aplicação previamente compilada                 |
 
-## Resources
+## Rotas disponíveis
 
-Check out a few resources that may come in handy when working with NestJS:
+Com a configuração padrão, a API responde em `http://127.0.0.1:4000`.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+| Método e rota | Resposta          | Finalidade                                     |
+| ------------- | ----------------- | ---------------------------------------------- |
+| `GET /`       | `Hello World!`    | Rota inicial da aplicação                      |
+| `GET /health` | `{"status":"ok"}` | Confirmar que o processo HTTP está respondendo |
 
-## Support
+```bash
+curl -fsS http://127.0.0.1:4000/health
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+A inicialização da API executa `SELECT 1` e falha se a conexão com o PostgreSQL não puder ser estabelecida. A rota `/health` retorna uma resposta estática; ela não executa uma nova consulta ao banco a cada requisição.
 
-## Stay in touch
+## Executar a API no Docker Compose
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Para construir a imagem e iniciar a API com sua dependência PostgreSQL:
 
-## License
+```bash
+docker compose up -d --build --wait --wait-timeout 120 api
+docker compose ps api postgres
+docker compose logs --tail=40 api
+curl -fsS http://127.0.0.1:4000/health
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+O Compose aguarda o PostgreSQL ficar saudável antes de iniciar a API. As migrações são aplicadas explicitamente com `db:migrate`; a inicialização da aplicação não altera o esquema do banco.
+
+Para liberar a porta antes de voltar à execução local:
+
+```bash
+docker compose stop api
+```
+
+O volume `postgres-data` preserva os dados ao recriar o contêiner. As variáveis `POSTGRES_*` inicializam o banco somente quando esse volume está vazio.
+
+## Persistência e migrações
+
+A API é responsável pelas migrações dos dados da plataforma, conforme o [ADR-003](../../docs/adr/003-persistence.md).
+
+| Local                                                                                                  | Responsabilidade                                                          |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| [`src/infrastructure/database/schema.ts`](./src/infrastructure/database/schema.ts)                     | Declarar a estrutura gerenciada pelo Drizzle                              |
+| [`src/infrastructure/database/database.module.ts`](./src/infrastructure/database/database.module.ts)   | Disponibilizar a conexão pelo módulo de injeção de dependências do NestJS |
+| [`src/infrastructure/database/check-connection.ts`](./src/infrastructure/database/check-connection.ts) | Verificar a conexão com uma consulta simples                              |
+| [`drizzle.config.ts`](./drizzle.config.ts)                                                             | Configurar o acesso ao banco e os caminhos das migrações                  |
+| [`drizzle/`](./drizzle/)                                                                               | Armazenar arquivos SQL e metadados das migrações                          |
+
+A migração inicial cria o esquema `nexus`. O histórico fica em `nexus_migrations.__drizzle_migrations`. As tabelas de negócio ainda serão definidas.
+
+O fluxo para evoluir o banco é:
+
+1. Alterar as declarações em `schema.ts`.
+2. Gerar a migração com `pnpm --filter api db:generate`.
+3. Revisar o SQL e os metadados gerados em `drizzle/`.
+4. Aplicar a migração com `pnpm --filter api db:migrate`.
+5. Validar os testes e versionar o SQL junto aos metadados.
+
+O comando `db:check` carrega o `.env` da raiz e consulta o banco, o usuário conectado e o resultado de `SELECT 1`. A configuração do Drizzle Kit também carrega esse arquivo quando ele existe e exige `DATABASE_URL`.
+
+O módulo de banco encerra o pool quando a aplicação é finalizada. A API habilita os eventos de encerramento para `SIGINT` e `SIGTERM`.
+
+### Conferir pelo `psql` do contêiner
+
+Execute este comando no terminal do computador para abrir o cliente:
+
+```bash
+docker compose exec postgres sh -ec 'exec psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
+```
+
+No prompt do `psql`, execute os comandos SQL e os comandos iniciados com `\`:
+
+```sql
+\conninfo
+\dn
+
+SELECT count(*) AS applied_migrations
+FROM nexus_migrations.__drizzle_migrations;
+
+SELECT id, hash, created_at
+FROM nexus_migrations.__drizzle_migrations
+ORDER BY id;
+```
+
+Use `\q` para sair e retornar ao terminal. Se o prompt mudar para `nexus-#`, existe um comando incompleto no buffer; use `\r` para limpá-lo antes de continuar. Comandos `docker` e `pnpm` devem ser executados no terminal do computador.
+
+## Qualidade e testes
+
+| Suíte                           | Arquivos                                                             | Banco real                                           |
+| ------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- |
+| Testes unitários                | `src/**/*.spec.ts`                                                   | Não                                                  |
+| Testes HTTP de ponta a ponta    | `test/**/*.e2e-spec.ts`                                              | Não; o módulo de banco é substituído no teste        |
+| Testes de integração PostgreSQL | `tests/integration/**/*.integration-spec.ts`, na raiz do repositório | Sim; contêiner temporário criado pelo Testcontainers |
+
+Execute as verificações da API:
+
+```bash
+pnpm --filter api typecheck
+pnpm --filter api lint
+pnpm --filter api test
+pnpm --filter api test:e2e
+pnpm --filter api build
+```
+
+Com o Docker em execução, valide também a suíte de integração:
+
+```bash
+pnpm --filter api typecheck:integration
+pnpm --filter api lint:integration
+pnpm --filter api test:integration
+```
+
+Os testes de integração usam dados sintéticos, credenciais próprias e uma porta escolhida pelo Docker. A suíte aponta `DATABASE_URL` para o contêiner temporário, restaura as variáveis ao final de cada teste e remove o contêiner ao encerrar. Não é necessário iniciar o PostgreSQL do Compose para essa suíte.
+
+Os quatro cenários verificam:
+
+1. Aplicação das migrações em um banco vazio e preservação dos dados ao executá-las novamente.
+2. Injeção de uma conexão funcional e encerramento do pool ao fechar o contexto NestJS.
+3. Falha na inicialização quando `DATABASE_URL` está ausente.
+4. Liberação do pool quando o banco indicado na conexão não existe.
+
+Para acompanhar alterações ou gerar cobertura dos testes unitários:
+
+```bash
+pnpm --filter api test:watch
+pnpm --filter api test:cov
+```
+
+### Configuração dos tipos nos testes de integração
+
+[`tsconfig.integration.json`](./tsconfig.integration.json) estende a configuração da API e inclui os testes da raiz, sem emitir arquivos compilados. Os tipos globais do Vitest vêm da configuração base da API.
+
+O arquivo [`tests/integration/tsconfig.json`](../../tests/integration/tsconfig.json) herda essa configuração e define `typeRoots` com os caminhos de `apps/api/node_modules/@types` e `apps/api/node_modules`. Assim, o editor encontra os tipos de Node.js e do Vitest mesmo com os testes fora da pasta da API, reconhecendo `describe`, `it`, `expect` e `vi`. O comando `typecheck:integration` verifica esse mesmo projeto, tanto localmente quanto na CI.
+
+## Integração contínua
+
+O [workflow de CI](../../.github/workflows/ci.yml) executa lint, verificação de tipos, testes e compilação. O job TypeScript também executa as verificações de integração PostgreSQL. O Testcontainers gerencia seu próprio banco temporário nesse job.
+
+A publicação em produção e a instrumentação de observabilidade serão definidas em etapas posteriores do projeto.
+
+## Documentação de referência
+
+- [Visão geral do Nexus AI](../../README.md).
+- [Convenções do repositório](../../docs/architecture/repository-conventions.md).
+- [Persistência e consistência — ADR-003](../../docs/adr/003-persistence.md).
+- [Documentação do NestJS](https://docs.nestjs.com/).
+- [Integração entre NestJS e Drizzle](https://docs.nestjs.com/data/drizzle).
+- [Migrações com Drizzle Kit](https://orm.drizzle.team/docs/kit-overview).
+- [Cliente `psql` do PostgreSQL 17](https://www.postgresql.org/docs/17/app-psql.html).
+- [Configuração dos globais do Vitest](https://vitest.dev/config/globals).
+- [Herança de configurações do TypeScript](https://www.typescriptlang.org/tsconfig/extends.html).
+- [PostgreSQL com Testcontainers](https://node.testcontainers.org/modules/postgresql/).
+- [Comando `docker compose up`](https://docs.docker.com/reference/cli/docker/compose/up/).
+
+## Licença
+
+Consulte a [licença do repositório](../../LICENSE).
