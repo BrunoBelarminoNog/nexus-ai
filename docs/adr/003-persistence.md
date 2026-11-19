@@ -1,7 +1,6 @@
 # ADR-003 — Persistência, ownership e consistência
 
-- Status: aceito para implementação; migrações ainda não criadas.
-- Data: 2026-11-09
+- Status: aceito; bootstrap do PostgreSQL e migração inicial validados localmente na NX-010. CI remota e integração pendentes.- Data: 2026-11-09
 - Escopo: NX-003 · Foundation
 - Responsável: mantenedor do projeto
 

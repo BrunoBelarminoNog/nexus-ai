@@ -44,6 +44,11 @@ jobs:
         run: pnpm test
       - name: API end-to-end tests
         run: pnpm test:e2e
+      - name: PostgreSQL integration checks
+        run: |
+          pnpm --filter api lint:integration
+          pnpm --filter api typecheck:integration
+          pnpm --filter api test:integration
       - name: Build
         run: pnpm build
 
