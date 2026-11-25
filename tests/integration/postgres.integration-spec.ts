@@ -26,7 +26,7 @@ describe.sequential('PostgreSQL integration', () => {
         }
     });
 
-    it('applies migrations to an empty database and preserves data on rerun', async () => {
+    it('upgrades the NX-010 schema and preserves existing data on migration reruns', async () => {
         const schemas = await fixture.db.execute(`
       SELECT schema_name
       FROM information_schema.schemata
@@ -36,17 +36,11 @@ describe.sequential('PostgreSQL integration', () => {
         expect(schemas.rows).toEqual([]);
         expect(fixture.migrationHashes.length).toBeGreaterThan(0);
 
-        await fixture.migrate();
-
-        const before = await fixture.db.$client.query<{ hash: string }>(`
-      SELECT hash
-      FROM nexus_migrations.__drizzle_migrations
-      ORDER BY id
+        await fixture.migrateInitialSchema();
+        const baseline = await fixture.db.$client.query(`
+      SELECT hash, to_regclass('nexus.runs') AS runs FROM nexus_migrations.__drizzle_migrations
     `);
-
-        expect(before.rows.map((row) => row.hash)).toEqual(
-            fixture.migrationHashes,
-        );
+        expect(baseline.rows).toEqual([{ hash: fixture.migrationHashes[0], runs: null }]);
 
         await fixture.db.execute(`
       CREATE TABLE nexus.integration_probe (
@@ -59,6 +53,13 @@ describe.sequential('PostgreSQL integration', () => {
             'INSERT INTO nexus.integration_probe VALUES ($1, $2)',
             [1, 'checkpoint-4'],
         );
+
+        await fixture.migrate();
+
+        const before = await fixture.db.$client.query<{ hash: string }>(`
+      SELECT hash FROM nexus_migrations.__drizzle_migrations ORDER BY id
+    `);
+        expect(before.rows.map((row) => row.hash)).toEqual(fixture.migrationHashes);
 
         await fixture.migrate();
 

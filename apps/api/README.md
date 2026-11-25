@@ -1,6 +1,6 @@
 # API do Nexus AI
 
-API desenvolvida com NestJS e TypeScript, responsável pela camada de controle da plataforma Nexus AI. A base atual inclui rotas HTTP, conexão com PostgreSQL, migrações com Drizzle e testes automatizados. Os módulos de negócio serão implementados nas próximas etapas.
+API desenvolvida com NestJS e TypeScript, responsável pela camada de controle da plataforma Nexus AI. O módulo de execuções persiste intenções, tentativas e eventos em PostgreSQL por meio de repositórios Drizzle.
 
 Este pacote faz parte do monorepositório. Execute os comandos deste documento a partir da **raiz do repositório**, exceto os comandos identificados como internos ao `psql`.
 
@@ -132,7 +132,7 @@ A API é responsável pelas migrações dos dados da plataforma, conforme o [ADR
 | [`drizzle.config.ts`](./drizzle.config.ts)                                                             | Configurar o acesso ao banco e os caminhos das migrações                  |
 | [`drizzle/`](./drizzle/)                                                                               | Armazenar arquivos SQL e metadados das migrações                          |
 
-A migração inicial cria o esquema `nexus`. O histórico fica em `nexus_migrations.__drizzle_migrations`. As tabelas de negócio ainda serão definidas.
+A migração inicial cria o esquema `nexus`. A migração `0001_execution_persistence` acrescenta as tabelas de execução. O Drizzle registra as migrações aplicadas em `nexus_migrations.__drizzle_migrations`.
 
 O fluxo para evoluir o banco é:
 
@@ -145,6 +145,29 @@ O fluxo para evoluir o banco é:
 O comando `db:check` carrega o `.env` da raiz e consulta o banco, o usuário conectado e o resultado de `SELECT 1`. A configuração do Drizzle Kit também carrega esse arquivo quando ele existe e exige `DATABASE_URL`.
 
 O módulo de banco encerra o pool quando a aplicação é finalizada. A API habilita os eventos de encerramento para `SIGINT` e `SIGTERM`.
+
+### Modelo de execução (NX-011)
+
+| Tabela | Conteúdo e garantias |
+| --- | --- |
+| `nexus.runs` | Intenção com ID estável, workspace, solicitante, agente e versão exata, input JSON, correlação, estado público e sequência do último evento. A chave de submissão é única por workspace e solicitante. |
+| `nexus.run_attempts` | Tentativas numeradas a partir de 1 dentro de cada run. Cada uma tem ID próprio, referência do runtime, horários e resultado ou erro. Um índice único parcial admite no máximo uma tentativa em `pending`, `running` ou `unknown` por run. |
+| `nexus.run_events` | Eventos com ID, versão, correlação, horário e sequência única por run. A chave estrangeira composta garante que a tentativa do evento pertence ao mesmo run. |
+
+O módulo NestJS exporta dois contratos. `ExecutionRepository` cria a intenção, consulta o snapshot com a tentativa mais recente e registra transições. `ExecutionHistoryRepository` consulta as tentativas por número e os eventos em páginas, em ordem crescente a partir de um cursor exclusivo. Todas as operações recebem o workspace e o solicitante do contexto autorizado. [Contratos dos repositórios](./src/executions/execution.repository.ts)
+
+`create` grava o run pendente, a primeira tentativa e o evento de sequência 1 na mesma transação. A chave de idempotência e o hash SHA-256 ficam na própria intenção durante toda a sua vida. O hash cobre agente, versão e input normalizados como JSONB. Repetir a chave com o mesmo conteúdo devolve o snapshot atual. Alterar o conteúdo com a mesma chave gera `IdempotencyConflictError`.
+
+| Estado da tentativa | Próximos estados aceitos |
+| --- | --- |
+| `pending` | `running`, `failed`, `unknown` |
+| `running` | `succeeded`, `failed`, `cancelled`, `unknown` |
+| `unknown` | `running`, `succeeded`, `failed`, `cancelled`, mediante confirmação do runtime |
+| `succeeded`, `failed`, `cancelled` | Terminais e imutáveis |
+
+`transition` bloqueia o run e verifica o ID da tentativa atual e a sequência observada pelo chamador. A tentativa, o estado público e o evento avançam no mesmo commit. Uma falha confirmada com `retry: true` encerra a tentativa e abre a próxima, preservando o estado `pending` ou `running` do run. Um resultado incerto exige reconciliação. O estado `cancelled` registra uma interrupção confirmada.
+
+O chamador fornece a versão resolvida do agente, o input e o resultado próprios para persistência. O repositório grava um erro com categoria (`platform`, `provider` ou `tool`), código e mensagem sanitizada. Eventos referenciam a tentativa que contém o resultado ou o erro. A integração com o runtime e os endpoints de submissão e acompanhamento ficam para as etapas seguintes.
 
 ### Conferir pelo `psql` do contêiner
 
@@ -196,14 +219,10 @@ pnpm --filter api lint:integration
 pnpm --filter api test:integration
 ```
 
-Os testes de integração usam dados sintéticos, credenciais próprias e uma porta escolhida pelo Docker. A suíte aponta `DATABASE_URL` para o contêiner temporário, restaura as variáveis ao final de cada teste e remove o contêiner ao encerrar. Não é necessário iniciar o PostgreSQL do Compose para essa suíte.
+Os testes de integração usam dados sintéticos e bancos temporários criados pelo Testcontainers. Cada suíte configura a própria conexão e remove seu contêiner ao encerrar.
 
-Os quatro cenários verificam:
-
-1. Aplicação das migrações em um banco vazio e preservação dos dados ao executá-las novamente.
-2. Injeção de uma conexão funcional e encerramento do pool ao fechar o contexto NestJS.
-3. Falha na inicialização quando `DATABASE_URL` está ausente.
-4. Liberação do pool quando o banco indicado na conexão não existe.
+- A suíte de infraestrutura verifica a atualização a partir da NX-010, a preservação de dados ao reaplicar migrações e o ciclo de vida do pool NestJS. [Testes de PostgreSQL](../../tests/integration/postgres.integration-spec.ts)
+- A suíte de execuções aplica todas as migrações a um banco vazio e usa os repositórios injetados pelo `AppModule`. Ela cobre idempotência e retries concorrentes, isolamento de contexto, transições, relacionamentos, paginação e rollback ao falhar a gravação do evento. [Testes de execução](../../tests/integration/execution.integration-spec.ts)
 
 Para acompanhar alterações ou gerar cobertura dos testes unitários:
 
