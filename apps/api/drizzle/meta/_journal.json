@@ -8,6 +8,13 @@
       "when": 1795048400647,
       "tag": "0000_init_nexus_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795646496905,
+      "tag": "0001_execution_persistence",
+      "breakpoints": true
     }
   ]
 }

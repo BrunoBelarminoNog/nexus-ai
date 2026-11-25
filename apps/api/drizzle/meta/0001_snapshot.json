@@ -1,0 +1,422 @@
+{
+  "id": "39df4551-cb48-4710-b21a-f976581e22a4",
+  "prevId": "05d9497f-540e-406a-9539-f7de78ccb7db",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "nexus.run_attempts": {
+      "name": "run_attempts",
+      "schema": "nexus",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "number": {
+          "name": "number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "execution_state",
+          "typeSchema": "nexus",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "runtime_ref": {
+          "name": "runtime_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp (3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "statement_timestamp()"
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp (3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "type": "timestamp (3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "output": {
+          "name": "output",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "run_attempts_one_active": {
+          "name": "run_attempts_one_active",
+          "columns": [
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"nexus\".\"run_attempts\".\"state\" IN ('pending', 'running', 'unknown')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "run_attempts_run_id_runs_id_fk": {
+          "name": "run_attempts_run_id_runs_id_fk",
+          "tableFrom": "run_attempts",
+          "tableTo": "runs",
+          "schemaTo": "nexus",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "run_attempts_run_number": {
+          "name": "run_attempts_run_number",
+          "nullsNotDistinct": false,
+          "columns": [
+            "run_id",
+            "number"
+          ]
+        },
+        "run_attempts_run_id_id": {
+          "name": "run_attempts_run_id_id",
+          "nullsNotDistinct": false,
+          "columns": [
+            "run_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "run_attempts_number_positive": {
+          "name": "run_attempts_number_positive",
+          "value": "\"nexus\".\"run_attempts\".\"number\" > 0"
+        },
+        "run_attempts_runtime_ref_present": {
+          "name": "run_attempts_runtime_ref_present",
+          "value": "\"nexus\".\"run_attempts\".\"runtime_ref\" ~ '[^[:space:]]'"
+        },
+        "run_attempts_start_valid": {
+          "name": "run_attempts_start_valid",
+          "value": "\n      (\"nexus\".\"run_attempts\".\"state\" <> 'pending' OR \"nexus\".\"run_attempts\".\"started_at\" IS NULL)\n      AND (\"nexus\".\"run_attempts\".\"state\" <> 'running' OR \"nexus\".\"run_attempts\".\"started_at\" IS NOT NULL)\n      AND \"nexus\".\"run_attempts\".\"started_at\" >= \"nexus\".\"run_attempts\".\"created_at\"\n    "
+        },
+        "run_attempts_finish_valid": {
+          "name": "run_attempts_finish_valid",
+          "value": "\n      (\"nexus\".\"run_attempts\".\"state\" IN ('succeeded', 'failed', 'cancelled')) = (\"nexus\".\"run_attempts\".\"finished_at\" IS NOT NULL)\n      AND \"nexus\".\"run_attempts\".\"finished_at\" >= coalesce(\"nexus\".\"run_attempts\".\"started_at\", \"nexus\".\"run_attempts\".\"created_at\")\n    "
+        },
+        "run_attempts_output_state": {
+          "name": "run_attempts_output_state",
+          "value": "(\"nexus\".\"run_attempts\".\"state\" = 'succeeded') = (\"nexus\".\"run_attempts\".\"output\" IS NOT NULL)"
+        },
+        "run_attempts_error_state": {
+          "name": "run_attempts_error_state",
+          "value": "(\"nexus\".\"run_attempts\".\"state\" = 'failed') = (\"nexus\".\"run_attempts\".\"error\" IS NOT NULL)"
+        },
+        "run_attempts_error_format": {
+          "name": "run_attempts_error_format",
+          "value": "\n      \"nexus\".\"run_attempts\".\"error\" IS NULL OR (\n        jsonb_typeof(\"nexus\".\"run_attempts\".\"error\") = 'object'\n        AND \"nexus\".\"run_attempts\".\"error\" - 'category' - 'code' - 'message' = '{}'::jsonb\n        AND \"nexus\".\"run_attempts\".\"error\"->>'category' IN ('platform', 'provider', 'tool')\n        AND jsonb_typeof(\"nexus\".\"run_attempts\".\"error\"->'code') = 'string' AND \"nexus\".\"run_attempts\".\"error\"->>'code' ~ '[^[:space:]]'\n        AND jsonb_typeof(\"nexus\".\"run_attempts\".\"error\"->'message') = 'string' AND \"nexus\".\"run_attempts\".\"error\"->>'message' ~ '[^[:space:]]'\n      ) IS TRUE\n    "
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "nexus.run_events": {
+      "name": "run_events",
+      "schema": "nexus",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schema_version": {
+          "name": "schema_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp (3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "statement_timestamp()"
+        },
+        "data": {
+          "name": "data",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "run_events_run_attempt_fk": {
+          "name": "run_events_run_attempt_fk",
+          "tableFrom": "run_events",
+          "tableTo": "run_attempts",
+          "schemaTo": "nexus",
+          "columnsFrom": [
+            "run_id",
+            "attempt_id"
+          ],
+          "columnsTo": [
+            "run_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "run_events_run_sequence": {
+          "name": "run_events_run_sequence",
+          "nullsNotDistinct": false,
+          "columns": [
+            "run_id",
+            "sequence"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "run_events_sequence_positive": {
+          "name": "run_events_sequence_positive",
+          "value": "\"nexus\".\"run_events\".\"sequence\" > 0"
+        },
+        "run_events_version_positive": {
+          "name": "run_events_version_positive",
+          "value": "\"nexus\".\"run_events\".\"schema_version\" > 0"
+        },
+        "run_events_envelope_valid": {
+          "name": "run_events_envelope_valid",
+          "value": "\n      \"nexus\".\"run_events\".\"type\" ~ '[^[:space:]]' AND \"nexus\".\"run_events\".\"correlation_id\" ~ '[^[:space:]]'\n      AND jsonb_typeof(\"nexus\".\"run_events\".\"data\") = 'object'\n    "
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "nexus.runs": {
+      "name": "runs",
+      "schema": "nexus",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requester_id": {
+          "name": "requester_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agent_version": {
+          "name": "agent_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "input": {
+          "name": "input",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "correlation_id": {
+          "name": "correlation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "execution_state",
+          "typeSchema": "nexus",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "last_event_sequence": {
+          "name": "last_event_sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp (3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "statement_timestamp()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp (3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "statement_timestamp()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "runs_submission_key": {
+          "name": "runs_submission_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workspace_id",
+            "requester_id",
+            "idempotency_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "runs_identity_present": {
+          "name": "runs_identity_present",
+          "value": "\n      \"nexus\".\"runs\".\"workspace_id\" ~ '[^[:space:]]' AND \"nexus\".\"runs\".\"requester_id\" ~ '[^[:space:]]'\n      AND \"nexus\".\"runs\".\"agent_id\" ~ '[^[:space:]]' AND \"nexus\".\"runs\".\"agent_version\" ~ '[^[:space:]]'\n      AND \"nexus\".\"runs\".\"idempotency_key\" ~ '[^[:space:]]' AND \"nexus\".\"runs\".\"correlation_id\" ~ '[^[:space:]]'\n    "
+        },
+        "runs_payload_hash_valid": {
+          "name": "runs_payload_hash_valid",
+          "value": "\"nexus\".\"runs\".\"payload_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "runs_sequence_positive": {
+          "name": "runs_sequence_positive",
+          "value": "\"nexus\".\"runs\".\"last_event_sequence\" > 0"
+        },
+        "runs_updated_after_creation": {
+          "name": "runs_updated_after_creation",
+          "value": "\"nexus\".\"runs\".\"updated_at\" >= \"nexus\".\"runs\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "nexus.execution_state": {
+      "name": "execution_state",
+      "schema": "nexus",
+      "values": [
+        "pending",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "unknown"
+      ]
+    }
+  },
+  "schemas": {
+    "nexus": "nexus"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

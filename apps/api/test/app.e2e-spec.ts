@@ -1,12 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Module, type INestApplication } from '@nestjs/common';
+import { getDrizzleToken } from '@nestjs/drizzle';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
 import { DatabaseModule } from '../src/infrastructure/database/database.module.js';
 
-@Module({})
-class TestDatabaseModule { }
+@Module({
+  providers: [{ provide: getDrizzleToken(), useValue: {} }],
+  exports: [getDrizzleToken()],
+})
+class TestDatabaseModule {}
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
